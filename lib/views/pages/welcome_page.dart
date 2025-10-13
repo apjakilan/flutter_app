@@ -12,7 +12,7 @@ class WelcomePage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ClipRRect(
-              child: Image.asset("assets/thestrokes.jpg"),
+              child: Image.asset("assets/images/thestrokes.jpg"),
             ),
             FilledButton(onPressed: () {
               
