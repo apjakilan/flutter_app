@@ -30,6 +30,7 @@ class LoginPage extends StatelessWidget {
           padding: const EdgeInsets.all(12.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            spacing: 10,
             children: [
               TextField(
                 decoration: InputDecoration(
@@ -37,9 +38,6 @@ class LoginPage extends StatelessWidget {
                   hintText: "Username",
                   hintStyle: TextStyle(color: Colors.grey),
                 ),
-              ),
-              SizedBox(
-                height: 8,
               ),
               TextField(
                 decoration: InputDecoration(
@@ -51,11 +49,12 @@ class LoginPage extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.center,
+                spacing: 10,
                 children: [
-                  ElevatedButton(onPressed: () {
+                  FilledButton(onPressed: () {
                     
                   }, child: Text("Enter")),
-                  ElevatedButton(onPressed: () {
+                  FilledButton(onPressed: () {
                     
                   }, child: Text("Forgot Password")),
                 ],

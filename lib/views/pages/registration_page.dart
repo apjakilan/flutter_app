@@ -30,6 +30,7 @@ class RegistrationPage extends StatelessWidget {
           padding: const EdgeInsets.all(12.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text("Username"),
               SizedBox(height: 8),
@@ -67,8 +68,8 @@ class RegistrationPage extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 spacing: 10,
                 children: [
-                  ElevatedButton(onPressed: () {}, child: Text("Submit")),
-                  ElevatedButton(onPressed: () {}, child: Text("Reset")),
+                  FilledButton(onPressed: () {}, child: Text("Register")),
+                  FilledButton(onPressed: () {}, child: Text("Reset")),
                 ],
               ),
             ],

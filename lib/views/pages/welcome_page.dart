@@ -24,7 +24,6 @@ class WelcomePage extends StatelessWidget {
                   return WidgetTree();
                 }));
             }, child: Text("Login"))
-        
           ],
         ),
       ), 
