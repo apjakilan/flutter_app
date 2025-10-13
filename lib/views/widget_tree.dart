@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/data/notifiers.dart';
 import 'package:flutter_app/views/pages/home_page.dart';
+import 'package:flutter_app/views/pages/login_page.dart';
 import 'package:flutter_app/views/pages/map_page.dart';
 import 'package:flutter_app/views/pages/post_page.dart';
 import 'package:flutter_app/views/pages/profile_page.dart';
@@ -37,7 +38,10 @@ class WidgetTree extends StatelessWidget {
         child: Column(
           children: [
             ListTile(leading: Icon(Icons.home), title: Text("Home")),
-            ListTile(leading: Icon(Icons.login_outlined), title: Text("Login Page"), ),
+            ListTile(leading: Icon(Icons.login_outlined), title: Text("Login Page"),onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => LoginPage()));
+            }, ),
             ListTile(leading: Icon(Icons.app_registration_outlined), title: Text("Registration Page"),onTap: () {
               Navigator.pop(context); 
               Navigator.push(context, MaterialPageRoute(builder: (context) => RegistrationPage()));

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/data/notifiers.dart';
+import 'package:flutter_app/views/pages/login_page.dart';
 import 'package:flutter_app/views/pages/registration_page.dart';
 import 'package:flutter_app/views/widget_tree.dart';
 
@@ -26,6 +27,7 @@ class MyApp extends StatelessWidget {
           home: WidgetTree(),
           routes: {
             '/firstpage': (context) => RegistrationPage(),
+            '/secondpage':(context) => LoginPage(),
 
           },
         );
