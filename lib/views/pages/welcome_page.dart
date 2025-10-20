@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_app/views/widget_tree.dart';
+import 'package:flutter_app/auth/auth_gate.dart';
+//import 'package:flutter_app/views/widget_tree.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -21,7 +22,7 @@ class WelcomePage extends StatelessWidget {
               Navigator.pushReplacement(
                 context, 
                 MaterialPageRoute(builder: (context) {
-                  return WidgetTree();
+                  return AuthGate();
                 }));
             }, child: Text("Login"))
           ],
