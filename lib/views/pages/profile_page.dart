@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_app/views/pages/edit_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Import the new shared post list widget (assuming you create one)
-// For now, we'll keep the logic in the main page.
-
-// Extend DefaultTabController to manage the tabs
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -13,7 +9,6 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-// Add SingleTickerProviderStateMixin for the TabController
 class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
   final title = 'Profile Page';
@@ -24,15 +19,15 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   bool isLoading = true;
 
   Future<List<Map<String, dynamic>>>? _userPostsFuture;
-  Future<List<Map<String, dynamic>>>? _likedPostsFuture; // 💡 NEW: Future for liked posts
+  Future<List<Map<String, dynamic>>>? _likedPostsFuture;
   String? currentUserId;
 
-  late TabController _tabController; // 💡 NEW: Tab controller
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this); // Initialize with 2 tabs
+    _tabController = TabController(length: 2, vsync: this);
     _loadProfileAndPosts();
   }
 
@@ -42,21 +37,17 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // Combines loading the profile and refreshing both post types
   Future<void> _loadProfileAndPosts() async {
     if (!mounted) return;
-    
     await _loadProfile();
-    
     if (mounted) {
       setState(() {
         _userPostsFuture = _fetchUserPosts();
-        _likedPostsFuture = _fetchLikedPosts(); // 💡 NEW: Refresh liked posts
+        _likedPostsFuture = _fetchLikedPosts();
       });
     }
   }
 
-  // --- Profile Loading (No Change) ---
   Future<void> _loadProfile() async {
     try {
       final user = supabase.auth.currentUser;
@@ -87,7 +78,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     }
   }
 
-  // --- Posts Loading (No Change) ---
   Future<List<Map<String, dynamic>>> _fetchUserPosts() async {
     final userId = currentUserId ?? supabase.auth.currentUser?.id;
     if (userId == null) return [];
@@ -108,24 +98,19 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     }
   }
 
-  // --- 💡 NEW: Liked Posts Loading ---
   Future<List<Map<String, dynamic>>> _fetchLikedPosts() async {
     final userId = currentUserId ?? supabase.auth.currentUser?.id;
     if (userId == null) return [];
 
     try {
-      // 1. Select the post IDs from the 'likes' table that belong to the current user
-      // 2. Join it with the 'posts' table to get the full post data
       final likedPosts = await supabase
           .from('likes')
-          .select('posts!inner(*)') // 💡 IMPORTANT: Join on posts table
+          .select('posts!inner(*)')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
       
       if (!mounted) return [];
 
-      // The result is an array of maps like: [{posts: {...post_data...}}, ...]
-      // We need to extract the actual post data from the nested 'posts' key.
       return likedPosts.map<Map<String, dynamic>>((likeEntry) {
         return likeEntry['posts'] as Map<String, dynamic>;
       }).toList();
@@ -140,7 +125,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     await supabase.auth.signOut();
   }
 
-  // --- Widget for a Single Post Card (No Change) ---
   Widget _buildPostCard(Map<String, dynamic> post) {
     final content = post['content'] ?? '';
     final imageUrl = post['image_url'] as String?;
@@ -203,7 +187,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     );
   }
 
-  // --- 💡 NEW: Widget to display the Future list of posts (replaces old FutureBuilder) ---
   Widget _buildPostList(Future<List<Map<String, dynamic>>>? future, String emptyMessage) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: future,
@@ -232,10 +215,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         }
 
         return ListView.builder(
-          // Important: Prevents a nested scrollable error
-          physics: const NeverScrollableScrollPhysics(), 
-          shrinkWrap: true,
           itemCount: posts.length,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
           itemBuilder: (context, index) {
             return _buildPostCard(posts[index]);
           },
@@ -244,119 +225,153 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text(title), backgroundColor: Colors.teal),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    
     return Scaffold(
-      appBar: AppBar(title: Text(username ?? title), backgroundColor: Colors.teal),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadProfileAndPosts,
-              child: Column(
-                children: [
-                  // --- 1. PROFILE HEADER SECTION (Moved to Column) ---
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Avatar & Username/Bio... (same as before)
-                        CircleAvatar(
-                          radius: 60,
-                          backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
-                              ? NetworkImage(avatarUrl!)
-                              : null,
-                          child: (avatarUrl == null || avatarUrl!.isEmpty)
-                              ? const Icon(Icons.person, size: 60)
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          username ?? 'Loading...',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          bio ?? 'No bio yet.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 16, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 24),
+      body: Column( // Use Column to stack the scrollable view, the edit button, and the logout area
+        children: [
+          Expanded( // The scrollable content (AppBar and TabBarView) goes here
+            child: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return <Widget>[
+                  SliverAppBar(
+                    title: Text(username ?? title),
+                    backgroundColor: Colors.teal,
+                    pinned: true,
+                    floating: true,
+                    snap: true,
+                    expandedHeight: 240.0, // Reduced height
+                    forceElevated: innerBoxIsScrolled,
+                    
+                    flexibleSpace: FlexibleSpaceBar(
+                      centerTitle: true,
+                      background: Padding(
+                        padding: const EdgeInsets.only(top: 80.0, left: 16, right: 16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            // Avatar
+                            CircleAvatar(
+                              radius: 40,
+                              backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
+                                  ? NetworkImage(avatarUrl!)
+                                  : null,
+                              child: (avatarUrl == null || avatarUrl!.isEmpty)
+                                  ? const Icon(Icons.person, size: 40)
+                                  : null,
+                            ),
+                            const SizedBox(height: 8),
 
-                        // Edit Button
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const EditProfilePage(),
+                            // Username
+                            Text(
+                              username ?? 'Loading...',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
-                            );
-                            await _loadProfileAndPosts(); 
-                          },
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Edit Profile'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal.shade300,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
+                            ),
+                            const SizedBox(height: 4),
+
+                            // Bio
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Text(
+                                bio ?? 'No bio yet.',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 14, color: Colors.white70),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Removed Edit Button from FlexibleSpaceBar
+                          ],
                         ),
-
-                        const Divider(height: 40),
-                      ],
+                      ),
                     ),
-                  ),
 
-                  // --- 2. TAB BAR ---
-                  TabBar(
-                    controller: _tabController,
-                    labelColor: Colors.teal,
-                    unselectedLabelColor: Colors.grey,
-                    indicatorColor: Colors.teal,
-                    tabs: const [
-                      Tab(icon: Icon(Icons.article), text: 'Posts'),
-                      Tab(icon: Icon(Icons.favorite), text: 'Likes'),
-                    ],
-                  ),
-                  
-                  // --- 3. TAB BAR VIEW (Main content) ---
-                  Expanded( // Use Expanded to give TabBarView the remaining height
-                    child: TabBarView(
+                    // TabBar is fixed to the bottom of the SliverAppBar
+                    bottom: TabBar(
                       controller: _tabController,
-                      children: [
-                        // Posts Tab
-                        SingleChildScrollView( // Keep SingleChildScrollView for pull-to-refresh to work
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            child: _buildPostList(_userPostsFuture, 'You haven\'t posted anything yet.'),
-                          ),
-                        ),
-
-                        // Liked Posts Tab 💡 NEW
-                        SingleChildScrollView(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            child: _buildPostList(_likedPostsFuture, 'You haven\'t liked any posts yet.'),
-                          ),
-                        ),
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.teal.shade100,
+                      indicatorColor: Colors.white,
+                      tabs: const [
+                        Tab(icon: Icon(Icons.article), text: 'Posts'),
+                        Tab(icon: Icon(Icons.favorite), text: 'Likes'),
                       ],
                     ),
                   ),
-                  
-                  // Logout option (moved outside of the scrollable area if you want it sticky)
-                  ListTile(
-                    leading: const Icon(Icons.logout),
-                    title: const Text('Logout'),
-                    onTap: _logout,
+                ];
+              },
+              // The body of NestedScrollView is the TabBarView
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  // Posts Tab Content
+                  RefreshIndicator(
+                    onRefresh: _loadProfileAndPosts,
+                    child: _buildPostList(_userPostsFuture, 'You haven\'t posted anything yet.'),
                   ),
-                  const SizedBox(height: 40),
+                  
+                  // Liked Posts Tab Content
+                  RefreshIndicator(
+                    onRefresh: _loadProfileAndPosts,
+                    child: _buildPostList(_likedPostsFuture, 'You haven\'t liked any posts yet.'),
+                  ),
                 ],
               ),
             ),
+          ),
+          
+          // 💡 FIXED Edit Button Section
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: SizedBox(
+              width: 150,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EditProfilePage(),
+                    ),
+                  );
+                  await _loadProfileAndPosts();
+                },
+                icon: const Icon(Icons.edit, size: 18),
+                label: const Text('Edit Profile'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal.shade50,
+                  foregroundColor: Colors.teal.shade800,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+            ),
+          ),
+
+          // 💡 FIXED Logout Button (Moved from original bottomNavigationBar)
+          SizedBox(
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text('Logout'),
+                  onTap: _logout,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
