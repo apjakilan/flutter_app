@@ -1,4 +1,6 @@
-import 'dart:io' show File; // Only import File for type compatibility, but we primarily use Uint8List
+import 'dart:io'
+    show
+        File; // Only import File for type compatibility, but we primarily use Uint8List
 import 'dart:typed_data'; // Required for Uint8List
 import 'package:flutter/material.dart';
 import 'package:flutter_app/auth/auth_service.dart';
@@ -9,6 +11,7 @@ import 'package:flutter_app/views/pages/map_page.dart';
 import 'package:flutter_app/views/pages/discover_page.dart';
 import 'package:flutter_app/views/pages/profile_page.dart';
 import 'package:flutter_app/views/pages/registration_page.dart';
+import 'package:flutter_app/views/pages/unified_search_page.dart';
 import 'package:flutter_app/views/post_card.dart';
 import 'package:flutter_app/views/widgets/navbar_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,7 +31,8 @@ class _WidgetTreeState extends State<WidgetTree> {
 
   // === CROSS-PLATFORM IMAGE POSTING STATE & FUNCTIONS ===
   Uint8List? _imageBytes; // Stores image data as bytes (cross-platform)
-  String? _imageFileName; // Stores the file name from image_picker (useful for upload)
+  String?
+  _imageFileName; // Stores the file name from image_picker (useful for upload)
   final _picker = ImagePicker();
 
   void logOut() async {
@@ -37,34 +41,42 @@ class _WidgetTreeState extends State<WidgetTree> {
 
   // Supabase Upload Function - now accepts Uint8List
   // NOTE: Requires a 'post_images' bucket and policies to be set in Supabase.
-  Future<String?> _uploadImageToSupabase(Uint8List imageBytes, String fileName) async {
+  Future<String?> _uploadImageToSupabase(
+    Uint8List imageBytes,
+    String fileName,
+  ) async {
     try {
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser!.id;
-      
+
       // Use the provided fileName or generate a unique one if not available
-      final finalFileName = fileName.isNotEmpty 
+      final finalFileName = fileName.isNotEmpty
           ? '${userId}_${DateTime.now().millisecondsSinceEpoch}_$fileName'
           : '${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      
-      final storagePath = 'public/$finalFileName'; 
+
+      final storagePath = 'public/$finalFileName';
 
       // 1. Upload the byte data to Supabase Storage using uploadBinary
-      await supabase.storage.from('post_images').uploadBinary(
+      await supabase.storage
+          .from('post_images')
+          .uploadBinary(
             storagePath,
             imageBytes,
             fileOptions: const FileOptions(
               cacheControl: '3600',
-              contentType: 'image/jpeg', // Assuming JPEG, adjust if you handle other formats
+              contentType:
+                  'image/jpeg', // Assuming JPEG, adjust if you handle other formats
             ),
           );
-      
+
       // 2. Get the publicly accessible URL
-      final publicUrl = supabase.storage.from('post_images').getPublicUrl(storagePath);
-      
+      final publicUrl = supabase.storage
+          .from('post_images')
+          .getPublicUrl(storagePath);
+
       return publicUrl;
     } catch (e) {
-      print('Error uploading image to Supabase: $e'); 
+      print('Error uploading image to Supabase: $e');
       return null;
     }
   }
@@ -76,6 +88,18 @@ class _WidgetTreeState extends State<WidgetTree> {
       appBar: AppBar(
         title: const Text('Snap2Store'),
         actions: [
+          IconButton(
+            onPressed: () {
+              // 💡 IMPLEMENT NAVIGATION HERE
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UnifiedSearchPage(), // NAVIGATE
+                ),
+              );
+            },
+            icon: Icon(Icons.search),
+          ),
           IconButton(
             onPressed: () {
               darkLightMode.value = !darkLightMode.value;
@@ -135,7 +159,7 @@ class _WidgetTreeState extends State<WidgetTree> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Reset the image state before showing the dialog
-          _imageBytes = null; 
+          _imageBytes = null;
           _imageFileName = null;
 
           showDialog(
@@ -150,13 +174,17 @@ class _WidgetTreeState extends State<WidgetTree> {
                 builder: (context, setStateInDialog) {
                   // Function to pick image and update dialog state
                   void selectImage() async {
-                    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-                    
+                    final pickedFile = await _picker.pickImage(
+                      source: ImageSource.gallery,
+                    );
+
                     if (pickedFile != null) {
-                      final bytes = await pickedFile.readAsBytes(); // Read data as bytes (cross-platform)
+                      final bytes = await pickedFile
+                          .readAsBytes(); // Read data as bytes (cross-platform)
                       setStateInDialog(() {
                         _imageBytes = bytes;
-                        _imageFileName = pickedFile.name; // Store original file name
+                        _imageFileName =
+                            pickedFile.name; // Store original file name
                       });
                     }
                   }
@@ -164,12 +192,16 @@ class _WidgetTreeState extends State<WidgetTree> {
                   // Function to handle posting logic
                   Future<void> createPost() async {
                     final content = controller.text.trim();
-                    
+
                     // Prevent posting if both text and image are empty
                     if (content.isEmpty && _imageBytes == null) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please enter text or select an image to post.')),
+                          const SnackBar(
+                            content: Text(
+                              'Please enter text or select an image to post.',
+                            ),
+                          ),
                         );
                       }
                       return;
@@ -187,18 +219,25 @@ class _WidgetTreeState extends State<WidgetTree> {
                     }
 
                     // Variable to hold the URL of the uploaded image
-                    String? imageUrl; 
-                    
+                    String? imageUrl;
+
                     // 1. UPLOAD IMAGE if one is selected
                     if (_imageBytes != null && _imageFileName != null) {
-                      imageUrl = await _uploadImageToSupabase(_imageBytes!, _imageFileName!);
+                      imageUrl = await _uploadImageToSupabase(
+                        _imageBytes!,
+                        _imageFileName!,
+                      );
                       if (imageUrl == null) {
-                         if (context.mounted) {
-                           ScaffoldMessenger.of(context).showSnackBar(
-                             const SnackBar(content: Text('Failed to upload image. Post aborted.')),
-                           );
-                           return; // Stop execution if image upload fails
-                         }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Failed to upload image. Post aborted.',
+                              ),
+                            ),
+                          );
+                          return; // Stop execution if image upload fails
+                        }
                       }
                     }
 
@@ -207,7 +246,8 @@ class _WidgetTreeState extends State<WidgetTree> {
                       await supabase.from('posts').insert({
                         'user_id': user.id,
                         'content': content,
-                        'image_url': imageUrl, // This will be null if no image was selected
+                        'image_url':
+                            imageUrl, // This will be null if no image was selected
                       });
 
                       if (context.mounted) {
@@ -244,7 +284,7 @@ class _WidgetTreeState extends State<WidgetTree> {
                             fit: BoxFit.cover,
                           ),
                         ),
-                      
+
                       // Text Field
                       Padding(
                         padding: const EdgeInsets.all(8.0),
@@ -258,18 +298,20 @@ class _WidgetTreeState extends State<WidgetTree> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 10),
-                      
+
                       // Image Picker Button
                       TextButton.icon(
                         icon: const Icon(Icons.image),
-                        label: Text(_imageBytes == null ? 'Add Image' : 'Change Image'),
+                        label: Text(
+                          _imageBytes == null ? 'Add Image' : 'Change Image',
+                        ),
                         onPressed: selectImage,
                       ),
-                      
+
                       const SizedBox(height: 10),
-                      
+
                       // Post Button
                       ElevatedButton.icon(
                         icon: const Icon(Icons.send),
