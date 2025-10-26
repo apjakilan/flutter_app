@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -28,6 +30,21 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Allow injecting the Google Maps API key from a local property without
+        // committing the key into source control. To set the key for local
+        // builds, add the following line to android/local.properties:
+        //   GOOGLE_MAPS_API_KEY=your_real_api_key_here
+        // The manifest uses ${GOOGLE_MAPS_API_KEY}.
+        // Note: local.properties is NOT automatically exposed as a Gradle project
+        // property, so we explicitly load it here.
+        val localProps = Properties()
+        val localFile = rootProject.file("local.properties")
+        if (localFile.exists()) {
+            localFile.inputStream().use { stream ->
+                localProps.load(stream)
+            }
+        }
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = localProps.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
     }
 
     buildTypes {
