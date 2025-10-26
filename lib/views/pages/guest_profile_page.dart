@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// The page now requires a userId in its constructor.
 class GuestProfilePage extends StatefulWidget {
   final String userId;
 
@@ -11,7 +10,8 @@ class GuestProfilePage extends StatefulWidget {
   State<GuestProfilePage> createState() => _GuestProfilePageState();
 }
 
-class _GuestProfilePageState extends State<GuestProfilePage> {
+// Add SingleTickerProviderStateMixin for the TabController
+class _GuestProfilePageState extends State<GuestProfilePage> with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
   String? avatarUrl;
   String? username;
@@ -19,12 +19,21 @@ class _GuestProfilePageState extends State<GuestProfilePage> {
   bool isLoading = true;
 
   Future<List<Map<String, dynamic>>>? _userPostsFuture;
+  Future<List<Map<String, dynamic>>>? _likedPostsFuture; // 💡 NEW: Future for liked posts
+
+  late TabController _tabController; // 💡 NEW: Tab controller
 
   @override
   void initState() {
     super.initState();
-    // Load data for the user ID passed from the constructor
+    _tabController = TabController(length: 2, vsync: this); // Initialize with 2 tabs
     _loadProfileAndPosts(widget.userId);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   // --- Profile & Posts Loading ---
@@ -36,11 +45,12 @@ class _GuestProfilePageState extends State<GuestProfilePage> {
     if (mounted) {
       setState(() {
         _userPostsFuture = _fetchUserPosts(userId);
+        _likedPostsFuture = _fetchLikedPosts(userId); // 💡 NEW: Refresh liked posts
       });
     }
   }
 
-  // Uses the passed userId to fetch profile data
+  // --- Profile Loading (No Change) ---
   Future<void> _loadProfile(String userId) async {
     try {
       final response = await supabase
@@ -52,7 +62,6 @@ class _GuestProfilePageState extends State<GuestProfilePage> {
       if (!mounted) return;
 
       setState(() {
-        // Use the fetched username for the AppBar title
         username = response?['username'] ?? 'User Profile';
         avatarUrl = response?['avatar_url'];
         bio = response?['bio'] ?? 'This user has not set a bio yet.';
@@ -67,7 +76,7 @@ class _GuestProfilePageState extends State<GuestProfilePage> {
     }
   }
 
-  // Uses the passed userId to fetch posts
+  // --- Posts Loading (No Change) ---
   Future<List<Map<String, dynamic>>> _fetchUserPosts(String userId) async {
     try {
       final posts = await supabase
@@ -85,13 +94,34 @@ class _GuestProfilePageState extends State<GuestProfilePage> {
     }
   }
 
-  // --- Widget for a Single Post Card (Same as in ProfilePage) ---
+  // --- 💡 NEW: Liked Posts Loading (Using the Guest userId) ---
+  Future<List<Map<String, dynamic>>> _fetchLikedPosts(String userId) async {
+    try {
+      final likedPosts = await supabase
+          .from('likes')
+          .select('posts!inner(*)') // 💡 IMPORTANT: Join on posts table
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+      
+      if (!mounted) return [];
+
+      // Extract the actual post data from the nested 'posts' key.
+      return likedPosts.map<Map<String, dynamic>>((likeEntry) {
+        return likeEntry['posts'] as Map<String, dynamic>;
+      }).toList();
+
+    } catch (e) {
+      debugPrint('Error fetching guest liked posts: $e');
+      return Future.error('Failed to load liked posts');
+    }
+  }
+
+  // --- Widget for a Single Post Card (No Change) ---
   Widget _buildPostCard(Map<String, dynamic> post) {
+    // ... (Post Card implementation remains the same as in the original GuestProfilePage)
     final content = post['content'] ?? '';
     final imageUrl = post['image_url'] as String?;
-    final createdAt = post['created_at'] ?? '';
 
-    // Simplified Post Card for Guest View
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 2,
@@ -125,16 +155,56 @@ class _GuestProfilePageState extends State<GuestProfilePage> {
     );
   }
 
+
+  // --- 💡 NEW: Widget to display the Future list of posts ---
+  Widget _buildPostList(Future<List<Map<String, dynamic>>>? future, String emptyMessage) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Error loading data: ${snapshot.error}'),
+            ),
+          );
+        }
+
+        final posts = snapshot.data ?? [];
+        if (posts.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(emptyMessage),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          physics: const NeverScrollableScrollPhysics(), 
+          shrinkWrap: true,
+          itemCount: posts.length,
+          itemBuilder: (context, index) {
+            return _buildPostCard(posts[index]);
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Title shows the user's username
       appBar: AppBar(title: Text(username ?? 'Loading Profile'), backgroundColor: Colors.teal),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: () => _loadProfileAndPosts(widget.userId),
-              child: ListView(
+              child: Column( // Change ListView to Column to properly house the TabBar
                 children: [
                   // --- 1. PROFILE HEADER SECTION ---
                   Padding(
@@ -164,42 +234,44 @@ class _GuestProfilePageState extends State<GuestProfilePage> {
                         ),
                         
                         const Divider(height: 40),
-
-                        const Text(
-                          'Posts',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
 
-                  // --- 2. USER POSTS FEED SECTION ---
-                  FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _userPostsFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      
-                      final userPosts = snapshot.data ?? [];
-                      if (userPosts.isEmpty) {
-                        return const Center(
+                  // --- 2. TAB BAR ---
+                  TabBar(
+                    controller: _tabController,
+                    labelColor: Colors.teal,
+                    unselectedLabelColor: Colors.grey,
+                    indicatorColor: Colors.teal,
+                    tabs: const [
+                      Tab(icon: Icon(Icons.article), text: 'Posts'),
+                      Tab(icon: Icon(Icons.favorite), text: 'Likes'), // 💡 NEW: Likes Tab
+                    ],
+                  ),
+                  
+                  // --- 3. TAB BAR VIEW (Main content) ---
+                  Expanded( // Use Expanded to give TabBarView the remaining height
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        // Posts Tab
+                        SingleChildScrollView(
                           child: Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Text('This user hasn\'t posted anything yet.'),
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: _buildPostList(_userPostsFuture, 'This user hasn\'t posted anything yet.'),
                           ),
-                        );
-                      }
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: userPosts.map(_buildPostCard).toList(),
                         ),
-                      );
-                    },
+
+                        // Liked Posts Tab 💡 NEW
+                        SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: _buildPostList(_likedPostsFuture, 'This user hasn\'t liked any posts yet.'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 40),
                 ],

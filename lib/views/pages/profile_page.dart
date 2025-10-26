@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_app/views/pages/edit_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// Import the new shared post list widget (assuming you create one)
+// For now, we'll keep the logic in the main page.
+
+// Extend DefaultTabController to manage the tabs
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -9,7 +13,8 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+// Add SingleTickerProviderStateMixin for the TabController
+class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
   final title = 'Profile Page';
 
@@ -19,15 +24,25 @@ class _ProfilePageState extends State<ProfilePage> {
   bool isLoading = true;
 
   Future<List<Map<String, dynamic>>>? _userPostsFuture;
-  String? currentUserId; // 💡 NEW: Store the user ID
+  Future<List<Map<String, dynamic>>>? _likedPostsFuture; // 💡 NEW: Future for liked posts
+  String? currentUserId;
+
+  late TabController _tabController; // 💡 NEW: Tab controller
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this); // Initialize with 2 tabs
     _loadProfileAndPosts();
   }
 
-  // Combines loading the profile and posts for the initial load and refresh
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // Combines loading the profile and refreshing both post types
   Future<void> _loadProfileAndPosts() async {
     if (!mounted) return;
     
@@ -36,17 +51,18 @@ class _ProfilePageState extends State<ProfilePage> {
     if (mounted) {
       setState(() {
         _userPostsFuture = _fetchUserPosts();
+        _likedPostsFuture = _fetchLikedPosts(); // 💡 NEW: Refresh liked posts
       });
     }
   }
 
-  // --- Profile Loading ---
+  // --- Profile Loading (No Change) ---
   Future<void> _loadProfile() async {
     try {
       final user = supabase.auth.currentUser;
       if (user == null) return;
       
-      currentUserId = user.id; // 💡 Set the user ID
+      currentUserId = user.id;
 
       final response = await supabase
           .from('profile')
@@ -71,9 +87,8 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // --- Posts Loading ---
+  // --- Posts Loading (No Change) ---
   Future<List<Map<String, dynamic>>> _fetchUserPosts() async {
-    // Use the stored ID, which is safer than relying on currentAuthUser during navigation
     final userId = currentUserId ?? supabase.auth.currentUser?.id;
     if (userId == null) return [];
 
@@ -84,7 +99,6 @@ class _ProfilePageState extends State<ProfilePage> {
           .eq('user_id', userId)
           .order('created_at', ascending: false);
       
-      // ⚠️ FREEZE FIX: If navigation occurred while query was running, abort processing.
       if (!mounted) return []; 
 
       return List<Map<String, dynamic>>.from(posts);
@@ -94,11 +108,39 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // --- 💡 NEW: Liked Posts Loading ---
+  Future<List<Map<String, dynamic>>> _fetchLikedPosts() async {
+    final userId = currentUserId ?? supabase.auth.currentUser?.id;
+    if (userId == null) return [];
+
+    try {
+      // 1. Select the post IDs from the 'likes' table that belong to the current user
+      // 2. Join it with the 'posts' table to get the full post data
+      final likedPosts = await supabase
+          .from('likes')
+          .select('posts!inner(*)') // 💡 IMPORTANT: Join on posts table
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+      
+      if (!mounted) return [];
+
+      // The result is an array of maps like: [{posts: {...post_data...}}, ...]
+      // We need to extract the actual post data from the nested 'posts' key.
+      return likedPosts.map<Map<String, dynamic>>((likeEntry) {
+        return likeEntry['posts'] as Map<String, dynamic>;
+      }).toList();
+
+    } catch (e) {
+      debugPrint('Error fetching liked posts: $e');
+      return Future.error('Failed to load liked posts');
+    }
+  }
+
   Future<void> _logout() async {
     await supabase.auth.signOut();
   }
 
-  // --- Widget for a Single Post Card ---
+  // --- Widget for a Single Post Card (No Change) ---
   Widget _buildPostCard(Map<String, dynamic> post) {
     final content = post['content'] ?? '';
     final imageUrl = post['image_url'] as String?;
@@ -111,7 +153,6 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Post Content and Timestamp
           Padding(
             padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
             child: Text(
@@ -132,7 +173,6 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           
-          // Image Display (If present)
           if (imageUrl != null && imageUrl.isNotEmpty)
             ClipRRect(
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(10)),
@@ -163,23 +203,64 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // --- 💡 NEW: Widget to display the Future list of posts (replaces old FutureBuilder) ---
+  Widget _buildPostList(Future<List<Map<String, dynamic>>>? future, String emptyMessage) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Error loading data: ${snapshot.error}'),
+            ),
+          );
+        }
+
+        final posts = snapshot.data ?? [];
+        if (posts.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(emptyMessage),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          // Important: Prevents a nested scrollable error
+          physics: const NeverScrollableScrollPhysics(), 
+          shrinkWrap: true,
+          itemCount: posts.length,
+          itemBuilder: (context, index) {
+            return _buildPostCard(posts[index]);
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title), backgroundColor: Colors.teal),
+      appBar: AppBar(title: Text(username ?? title), backgroundColor: Colors.teal),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadProfileAndPosts,
-              child: ListView(
+              child: Column(
                 children: [
-                  // --- 1. PROFILE HEADER SECTION ---
+                  // --- 1. PROFILE HEADER SECTION (Moved to Column) ---
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Avatar
+                        // Avatar & Username/Bio... (same as before)
                         CircleAvatar(
                           radius: 60,
                           backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
@@ -190,8 +271,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               : null,
                         ),
                         const SizedBox(height: 16),
-
-                        // Username
                         Text(
                           username ?? 'Loading...',
                           textAlign: TextAlign.center,
@@ -201,8 +280,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-
-                        // Bio
                         Text(
                           bio ?? 'No bio yet.',
                           textAlign: TextAlign.center,
@@ -219,7 +296,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 builder: (context) => const EditProfilePage(),
                               ),
                             );
-                            await _loadProfileAndPosts(); // Refresh profile AND posts
+                            await _loadProfileAndPosts(); 
                           },
                           icon: const Icon(Icons.edit),
                           label: const Text('Edit Profile'),
@@ -230,55 +307,47 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
 
                         const Divider(height: 40),
-                        
-                        // Section Header
-                        const Text(
-                          'Your Posts',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
 
-                  // --- 2. USER POSTS FEED SECTION ---
-                  FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _userPostsFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Text('Error loading posts: ${snapshot.error}'),
-                          ),
-                        );
-                      }
-
-                      final userPosts = snapshot.data ?? [];
-                      if (userPosts.isEmpty) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Text('You haven\'t posted anything yet.'),
-                          ),
-                        );
-                      }
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: userPosts.map(_buildPostCard).toList(),
-                        ),
-                      );
-                    },
+                  // --- 2. TAB BAR ---
+                  TabBar(
+                    controller: _tabController,
+                    labelColor: Colors.teal,
+                    unselectedLabelColor: Colors.grey,
+                    indicatorColor: Colors.teal,
+                    tabs: const [
+                      Tab(icon: Icon(Icons.article), text: 'Posts'),
+                      Tab(icon: Icon(Icons.favorite), text: 'Likes'),
+                    ],
                   ),
                   
-                  // Logout option
+                  // --- 3. TAB BAR VIEW (Main content) ---
+                  Expanded( // Use Expanded to give TabBarView the remaining height
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        // Posts Tab
+                        SingleChildScrollView( // Keep SingleChildScrollView for pull-to-refresh to work
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: _buildPostList(_userPostsFuture, 'You haven\'t posted anything yet.'),
+                          ),
+                        ),
+
+                        // Liked Posts Tab 💡 NEW
+                        SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: _buildPostList(_likedPostsFuture, 'You haven\'t liked any posts yet.'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Logout option (moved outside of the scrollable area if you want it sticky)
                   ListTile(
                     leading: const Icon(Icons.logout),
                     title: const Text('Logout'),
