@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LikeService {
@@ -24,10 +25,10 @@ class LikeService {
       return newCount as int;
 
     } on PostgrestException catch (e) {
-      print('Supabase RPC Error toggling like: ${e.message}');
+      debugPrint('Supabase RPC Error toggling like: ${e.message}');
       rethrow;
     } catch (e) {
-      print('General Error toggling like: $e');
+      debugPrint('General Error toggling like: $e');
       rethrow;
     }
   }

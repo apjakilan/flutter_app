@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_app/views/pages/guest_profile_page.dart';
+import 'package:go_router/go_router.dart';
 // 🚀 THIS IS THE IMPORTANT CHANGE: Import the correct file!
 import 'package:flutter_app/like/like_service.dart';
 
@@ -154,17 +154,11 @@ class _HomePageState extends State<HomePage> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                             // User info and text content
-                                            ListTile(
+                                                ListTile(
                                                 onTap: () {
                                                     if (userId != null && userId.isNotEmpty) {
-                                                        Navigator.push(
-                                                            context,
-                                                            MaterialPageRoute(
-                                                                builder: (context) => GuestProfilePage(
-                                                                    userId: userId,
-                                                                ),
-                                                            ),
-                                                        );
+                                                        // Navigate using go_router to the guest profile route
+                                                        context.push('/guest/$userId');
                                                     }
                                                 },
                                                 leading: CircleAvatar(
@@ -246,7 +240,7 @@ class _HomePageState extends State<HomePage> {
                                                                 try {
                                                                     // The toggleLike RPC in your service returns the new count (int).
                                                                     // We don't need to use the return value here, as we reload the stream.
-                                                                    await _likeService.toggleLike(postId, _currentUserId!);
+                                                                    await _likeService.toggleLike(postId, _currentUserId);
                                                                     
                                                                     // Reload the stream to fetch the updated count and user_liked status.
                                                                     setState(() {

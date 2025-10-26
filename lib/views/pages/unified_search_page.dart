@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-// Import your navigation targets
-import 'package:flutter_app/views/pages/guest_profile_page.dart'; 
+import 'package:go_router/go_router.dart';
 // Assuming you have a PostDetailPage or similar, though ListTiles will suffice for now
 
 class UnifiedSearchPage extends StatefulWidget {
@@ -186,7 +185,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal),
             ),
           ),
-        ..._userResults.map(_buildUserListTile).toList(),
+          ..._userResults.map(_buildUserListTile),
         
         const Divider(),
 
@@ -199,7 +198,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal),
             ),
           ),
-        ..._postResults.map(_buildPostListTile).toList(),
+          ..._postResults.map(_buildPostListTile),
         
         const SizedBox(height: 50),
       ],
@@ -219,14 +218,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       ),
       title: Text(username ?? 'Unknown User'),
       subtitle: const Text('Tap to view profile'),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => GuestProfilePage(userId: userId),
-          ),
-        );
-      },
+      onTap: () => context.push('/guest/$userId'),
     );
   }
 

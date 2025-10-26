@@ -1,4 +1,5 @@
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService 
@@ -77,8 +78,8 @@ Future<void> registerUserWithProfile({
         .eq('id', userId)
         .select();
 
-    // Success!
-    print('User registered and profile completed successfully.');
+  // Success!
+  debugPrint('User registered and profile completed successfully.');
     
   } on AuthException catch (e) {
     // Catch specific Supabase Auth errors (e.g., "Email already registered")
@@ -113,6 +114,19 @@ Future<void> registerUserWithProfile({
     final session = _supabase.auth.currentSession;
     final user = session?.user;
     return user?.email;
+  }
+
+  /// Send a password reset email using Supabase Auth.
+  ///
+  /// Throws [AuthException] on Supabase auth errors, or other exceptions for unexpected failures.
+  Future<void> resetPassword(String email) async {
+    try {
+      await _supabase.auth.resetPasswordForEmail(email);
+    } on AuthException catch (e) {
+      throw Exception('Authentication Error: ${e.message}');
+    } catch (e) {
+      throw Exception('Password reset failed: $e');
+    }
   }
 
   
