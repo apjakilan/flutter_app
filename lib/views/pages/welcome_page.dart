@@ -16,7 +16,7 @@ class WelcomePage extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadiusGeometry.circular(20),
-              child: Image.asset('/images/thestrokes.jpeg'),
+              child: Image.asset('assets/images/thestrokes.jpeg'),
             ),
             FilledButton(onPressed: () {
               Navigator.pushReplacement(
