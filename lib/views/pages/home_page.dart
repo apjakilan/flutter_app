@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_app/views/pages/guest_profile_page.dart'; 
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,7 +21,7 @@ class _HomePageState extends State<HomePage> {
     _postsStream = _getRealtimePosts();
   }
 
-  /// ✅ Creates a realtime stream of posts and joins with profile info
+  /// Creates a realtime stream of posts and joins with profile info
   Stream<List<Map<String, dynamic>>> _getRealtimePosts() {
     return supabase
         .from('posts')
@@ -100,7 +101,10 @@ class _HomePageState extends State<HomePage> {
                 final username = profile['username'] ?? 'Unknown';
                 final avatarUrl = profile['avatar_url'];
                 final content = post['content'] ?? '';
+                final imageUrl = post['image_url'] as String?; // Cast as String? for safety
                 final createdAt = post['created_at'] ?? '';
+                // The ID of the post author
+                final userId = post['user_id'] as String?; 
 
                 return Card(
                   margin:
@@ -109,34 +113,89 @@ class _HomePageState extends State<HomePage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: avatarUrl != null && avatarUrl != ''
-                          ? NetworkImage(avatarUrl)
-                          : const AssetImage('assets/default_avatar.png')
-                              as ImageProvider,
-                    ),
-                    title: Text(
-                      username,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // USER INFO AND TEXT CONTENT 
+                      ListTile(
+                        // 💡 ADD onTap TO NAVIGATE TO THE GUEST PROFILE PAGE
+                        onTap: () {
+                          if (userId != null && userId.isNotEmpty) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => GuestProfilePage(
+                                  userId: userId, // Pass the author's user ID
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        
+                        leading: CircleAvatar(
+                          backgroundImage: avatarUrl != null && avatarUrl != ''
+                              ? NetworkImage(avatarUrl)
+                              : const AssetImage('assets/default_avatar.png')
+                                    as ImageProvider,
+                        ),
+                        title: Text(
+                          username,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(content),
+                        ),
+                        trailing: Text(
+                          createdAt != ''
+                              ? DateTime.parse(createdAt)
+                                  .toLocal()
+                                  .toString()
+                                  .substring(0, 16)
+                              : '',
+                          style:
+                              const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
                       ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(content),
-                    ),
-                    trailing: Text(
-                      createdAt != ''
-                          ? DateTime.parse(createdAt)
-                              .toLocal()
-                              .toString()
-                              .substring(0, 16)
-                          : '',
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
+                      
+                      // 🖼️ Image Display 
+                      if (imageUrl != null && imageUrl.isNotEmpty) 
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8.0),
+                            child: Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              // Add headers for cache control (optional, but good practice)
+                              headers: const {'accept': 'image/*'}, 
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(
+                                  child: SizedBox(
+                                    height: 150, // Give it a placeholder height
+                                    child: Center(child: CircularProgressIndicator()),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                // Print the error to the console for debugging
+                                debugPrint('Image load failed for URL: $imageUrl. Error: $error');
+                                return const SizedBox(
+                                  height: 150,
+                                  child: Center(
+                                    child: Text('Failed to load image 😔'),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 );
               },

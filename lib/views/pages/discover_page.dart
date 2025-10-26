@@ -11,11 +11,11 @@ class DiscoverPage extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Discover'),
-          centerTitle: true,
+          title: const Text('Discover Page'),
+          //centerTitle: true,
           backgroundColor: Colors.teal,
           bottom: const TabBar(
-            indicatorColor: Colors.white,
+            indicatorColor: Color.fromARGB(255, 44, 41, 41),
             tabs: [
               Tab(icon: Icon(Icons.place_outlined), text: 'Near you'),
               Tab(icon: Icon(Icons.new_releases_outlined), text: 'Something new'),

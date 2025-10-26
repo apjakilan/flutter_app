@@ -1,69 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_app/views/pages/edit_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+// The page now requires a userId in its constructor.
+class GuestProfilePage extends StatefulWidget {
+  final String userId;
+
+  const GuestProfilePage({super.key, required this.userId});
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  State<GuestProfilePage> createState() => _GuestProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _GuestProfilePageState extends State<GuestProfilePage> {
   final supabase = Supabase.instance.client;
-  final title = 'Profile Page';
-
   String? avatarUrl;
   String? username;
   String? bio;
   bool isLoading = true;
 
   Future<List<Map<String, dynamic>>>? _userPostsFuture;
-  String? currentUserId; // 💡 NEW: Store the user ID
 
   @override
   void initState() {
     super.initState();
-    _loadProfileAndPosts();
+    // Load data for the user ID passed from the constructor
+    _loadProfileAndPosts(widget.userId);
   }
 
-  // Combines loading the profile and posts for the initial load and refresh
-  Future<void> _loadProfileAndPosts() async {
+  // --- Profile & Posts Loading ---
+  Future<void> _loadProfileAndPosts(String userId) async {
     if (!mounted) return;
     
-    await _loadProfile();
+    await _loadProfile(userId);
     
     if (mounted) {
       setState(() {
-        _userPostsFuture = _fetchUserPosts();
+        _userPostsFuture = _fetchUserPosts(userId);
       });
     }
   }
 
-  // --- Profile Loading ---
-  Future<void> _loadProfile() async {
+  // Uses the passed userId to fetch profile data
+  Future<void> _loadProfile(String userId) async {
     try {
-      final user = supabase.auth.currentUser;
-      if (user == null) return;
-      
-      currentUserId = user.id; // 💡 Set the user ID
-
       final response = await supabase
           .from('profile')
           .select('avatar_url, username, bio')
-          .eq('id', user.id)
+          .eq('id', userId)
           .maybeSingle();
 
       if (!mounted) return;
 
       setState(() {
+        // Use the fetched username for the AppBar title
+        username = response?['username'] ?? 'User Profile';
         avatarUrl = response?['avatar_url'];
-        username = response?['username'] ?? 'Unknown User';
-        bio = response?['bio'] ?? '';
+        bio = response?['bio'] ?? 'This user has not set a bio yet.';
         isLoading = false;
       });
     } catch (e) {
-      debugPrint('Error loading profile: $e');
+      debugPrint('Error loading guest profile: $e');
       if (!mounted) return;
       setState(() {
         isLoading = false;
@@ -71,39 +67,31 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // --- Posts Loading ---
-  Future<List<Map<String, dynamic>>> _fetchUserPosts() async {
-    // Use the stored ID, which is safer than relying on currentAuthUser during navigation
-    final userId = currentUserId ?? supabase.auth.currentUser?.id;
-    if (userId == null) return [];
-
+  // Uses the passed userId to fetch posts
+  Future<List<Map<String, dynamic>>> _fetchUserPosts(String userId) async {
     try {
       final posts = await supabase
           .from('posts')
           .select('*')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
-      
-      // ⚠️ FREEZE FIX: If navigation occurred while query was running, abort processing.
-      if (!mounted) return []; 
 
+      if (!mounted) return []; 
+      
       return List<Map<String, dynamic>>.from(posts);
     } catch (e) {
-      debugPrint('Error fetching user posts: $e');
+      debugPrint('Error fetching guest user posts: $e');
       return Future.error('Failed to load posts');
     }
   }
 
-  Future<void> _logout() async {
-    await supabase.auth.signOut();
-  }
-
-  // --- Widget for a Single Post Card ---
+  // --- Widget for a Single Post Card (Same as in ProfilePage) ---
   Widget _buildPostCard(Map<String, dynamic> post) {
     final content = post['content'] ?? '';
     final imageUrl = post['image_url'] as String?;
     final createdAt = post['created_at'] ?? '';
 
+    // Simplified Post Card for Guest View
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 2,
@@ -111,28 +99,10 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Post Content and Timestamp
           Padding(
-            padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
-            child: Text(
-              content,
-              style: const TextStyle(fontSize: 16),
-            ),
+            padding: const EdgeInsets.all(16.0),
+            child: Text(content, style: const TextStyle(fontSize: 16)),
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: 4, left: 16, right: 16, bottom: 8),
-            child: Text(
-              createdAt != ''
-                  ? DateTime.parse(createdAt)
-                      .toLocal()
-                      .toString()
-                      .substring(0, 16)
-                  : 'Just now',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ),
-          
-          // Image Display (If present)
           if (imageUrl != null && imageUrl.isNotEmpty)
             ClipRRect(
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(10)),
@@ -142,18 +112,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 width: double.infinity,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
-                  return const SizedBox(
-                    height: 200,
-                    child: Center(child: CircularProgressIndicator()),
-                  );
+                  return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
                 },
                 errorBuilder: (context, error, stackTrace) {
-                  return const SizedBox(
-                    height: 100,
-                    child: Center(
-                      child: Text('Image failed to load 😔', style: TextStyle(color: Colors.red)),
-                    ),
-                  );
+                  return const SizedBox(height: 100, child: Center(child: Text('Image failed to load 😔')));
                 },
               ),
             ),
@@ -166,20 +128,20 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title), backgroundColor: Colors.teal),
+      // Title shows the user's username
+      appBar: AppBar(title: Text(username ?? 'Loading Profile'), backgroundColor: Colors.teal),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _loadProfileAndPosts,
+              onRefresh: () => _loadProfileAndPosts(widget.userId),
               child: ListView(
                 children: [
                   // --- 1. PROFILE HEADER SECTION ---
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Avatar
                         CircleAvatar(
                           radius: 60,
                           backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
@@ -190,50 +152,21 @@ class _ProfilePageState extends State<ProfilePage> {
                               : null,
                         ),
                         const SizedBox(height: 16),
-
-                        // Username
                         Text(
-                          username ?? 'Loading...',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          username ?? 'User Profile',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
-
-                        // Bio
                         Text(
-                          bio ?? 'No bio yet.',
+                          bio ?? '',
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 16, color: Colors.grey),
                         ),
-                        const SizedBox(height: 24),
-
-                        // Edit Button
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const EditProfilePage(),
-                              ),
-                            );
-                            await _loadProfileAndPosts(); // Refresh profile AND posts
-                          },
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Edit Profile'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal.shade300,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-
-                        const Divider(height: 40),
                         
-                        // Section Header
+                        const Divider(height: 40),
+
                         const Text(
-                          'Your Posts',
+                          'Posts',
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
@@ -248,22 +181,13 @@ class _ProfilePageState extends State<ProfilePage> {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
-
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Text('Error loading posts: ${snapshot.error}'),
-                          ),
-                        );
-                      }
-
+                      
                       final userPosts = snapshot.data ?? [];
                       if (userPosts.isEmpty) {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(16.0),
-                            child: Text('You haven\'t posted anything yet.'),
+                            child: Text('This user hasn\'t posted anything yet.'),
                           ),
                         );
                       }
@@ -276,13 +200,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       );
                     },
-                  ),
-                  
-                  // Logout option
-                  ListTile(
-                    leading: const Icon(Icons.logout),
-                    title: const Text('Logout'),
-                    onTap: _logout,
                   ),
                   const SizedBox(height: 40),
                 ],

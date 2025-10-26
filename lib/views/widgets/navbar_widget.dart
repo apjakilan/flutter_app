@@ -11,7 +11,7 @@ class NavbarWidget extends StatelessWidget {
           destinations: [
             NavigationDestination(icon: Icon(Icons.home), label: 'home'),
             NavigationDestination(icon: Icon(Icons.person), label: 'profile'),
-            NavigationDestination(icon: Icon(Icons.post_add), label: 'post'),
+            NavigationDestination(icon: Icon(Icons.post_add), label: 'discover'),
             NavigationDestination(icon: Icon(Icons.map), label: 'map'),
           ],
           onDestinationSelected: (value) {
