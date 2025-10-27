@@ -12,14 +12,31 @@
         const accessToken = params.get('access_token');
         const type = params.get('type') || '';
 
-        if (accessToken) {
-          // Redirect to app scheme with token as query param
-          // Example: snap2store://reset-password?access_token=...
-          const target = `snap2store://reset-password?access_token=${encodeURIComponent(accessToken)}&type=${encodeURIComponent(type)}`;
-          // Use replace to avoid leaving the token in browser history
-          window.location.replace(target);
-        } else {
+        if (!accessToken) {
           document.body.textContent = 'No access token found in URL.';
+          return;
+        }
+
+        // Targets
+        const appTarget = `snap2store://reset-password?access_token=${encodeURIComponent(accessToken)}&type=${encodeURIComponent(type)}`;
+        // Update the webTarget to match where your web app is hosted. If you publish
+        // the app under a repo (GitHub Pages) you might need the repo path.
+    // Web target uses your GitHub Pages site. Update if you host elsewhere.
+    const webTarget = `https://apjakilan.github.io/flutter_app/reset-password?access_token=${encodeURIComponent(accessToken)}&type=${encodeURIComponent(type)}`;
+
+        // Heuristic: if likely a mobile browser, attempt to open the app scheme first
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+        if (isMobile) {
+          // Try to open the native app. Then fallback to the web route after a short delay.
+          window.location.replace(appTarget);
+          setTimeout(() => {
+            window.location.replace(webTarget);
+          }, 1200);
+        } else {
+          // Desktop / Edge — go straight to the web app route so the Flutter web
+          // app can read the token from the query parameter.
+          window.location.replace(webTarget);
         }
       })();
     </script>

@@ -62,30 +62,88 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   // 2. Setup a realtime stream for comments (OPTIMIZED)
 Stream<List<Map<String, dynamic>>> _getRealtimeComments() {
-  // 1. Listen for any change on the 'comments' table related to this post.
-  // The result of this stream is a List<Map<String, dynamic>> of the raw records
-  // that changed, but we only care that a change happened.
+  // Subscribe to realtime events for comments on this post and, on each
+  // event, run a full SELECT to fetch the joined/profile data (realtime
+  // payloads don't include related rows).
+  // Wrap the SELECT in a try/catch so a failing SELECT doesn't close the
+  // stream with an error. Instead we emit an empty list and log the issue.
   return supabase
       .from('comments')
       .stream(primaryKey: ['id'])
       .eq('post_id', widget.postId)
       .order('created_at', ascending: true)
-      // 2. Map every change event (or initial load) to a new Future query
-      // that fetches the ENTIRE, correct, JOINED dataset.
       .map((_) {
-        // We ignore the raw data (_) and initiate a full, correct SELECT query.
+        // On any change event, return the SELECT Future which fetches the
+        // full dataset including the profile join.
         return supabase
             .from('comments')
-            // This is the working SELECT with the JOIN syntax
-            .select('*, profile:user_id(username, avatar_url)') 
+            .select('*, profile:user_id(username, avatar_url)')
             .eq('post_id', widget.postId)
             .order('created_at', ascending: true)
-            .limit(100); // Add a limit just in case
+            .limit(100);
       })
-      // 3. Use asyncMap to wait for and unpack the Future<List<Map<String, dynamic>>> 
-      // returned by the SELECT query, turning the result back into the required 
-      // Stream<List<Map<String, dynamic>>> type.
-      .asyncMap((future) => future);
+      .asyncMap((future) async {
+        try {
+          final result = await future;
+          // result from supabase SELECT is a List<Map<String, dynamic>>
+          return List<Map<String, dynamic>>.from(result as List);
+        } catch (e, st) {
+          // If the join-based SELECT fails because the DB relationship
+          // isn't defined (common when the foreign key is missing),
+          // fall back to a two-step fetch: comments then profiles.
+          debugPrint('Error fetching comments (SELECT): $e\n$st');
+          final err = e.toString();
+          if (err.contains('Could not find a relationship') || err.contains('PGRST200')) {
+            debugPrint('Falling back to separate comments + profiles fetch (no FK relationship).');
+            try {
+              final rawComments = await supabase
+                  .from('comments')
+                  .select()
+                  .eq('post_id', widget.postId)
+                  .order('created_at', ascending: true)
+                  .limit(100);
+
+              final commentsList = List<Map<String, dynamic>>.from(rawComments as List);
+
+              // Batch-fetch profiles for commenters. Some Postgrest clients
+              // don't expose a safe 'in' helper; fetch sequentially per id
+              // which is simpler and robust (fine for small comment counts).
+              final userIds = commentsList.map((c) => c['user_id']).whereType<String>().toSet().toList();
+              if (userIds.isEmpty) return commentsList;
+
+              final Map<String, Map<String, dynamic>> profileById = {};
+              for (final uid in userIds) {
+                try {
+                  final raw = await supabase
+                      .from('profile')
+                      .select('id, username, avatar_url')
+                      .eq('id', uid);
+                  final list = List<Map<String, dynamic>>.from(raw as List);
+                  if (list.isNotEmpty) profileById[uid] = list.first;
+                } catch (e3, st3) {
+                  debugPrint('Failed to fetch profile for $uid: $e3\n$st3');
+                }
+              }
+
+              // Merge profile data into each comment under 'profile' key
+              final merged = commentsList.map((c) {
+                final pid = c['user_id'];
+                final profile = profileById[pid] ?? {};
+                final m = Map<String, dynamic>.from(c);
+                m['profile'] = profile;
+                return m;
+              }).toList();
+
+              return merged;
+            } catch (e2, st2) {
+              debugPrint('Fallback comments fetch failed: $e2\n$st2');
+              return <Map<String, dynamic>>[];
+            }
+          }
+          // For any other error, emit empty list so UI can recover.
+          return <Map<String, dynamic>>[];
+        }
+      });
 }
 
   // 3. Insert a new comment
@@ -136,6 +194,7 @@ Stream<List<Map<String, dynamic>>> _getRealtimeComments() {
         title: const Text('Post Detail'),
         backgroundColor: Colors.teal,
       ),
+      resizeToAvoidBottomInset: true,
       // 💡 WRAP with RefreshIndicator
       body: RefreshIndicator(
         onRefresh: () async {
@@ -207,8 +266,11 @@ Stream<List<Map<String, dynamic>>> _getRealtimeComments() {
                       if (commentSnapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator(strokeWidth: 2));
                       }
-                      if (commentSnapshot.hasError || !commentSnapshot.hasData) {
-                        return const Center(child: Text('Error loading comments.'));
+                      if (commentSnapshot.hasError) {
+                        return Center(child: Text('Error loading comments: ${commentSnapshot.error}'));
+                      }
+                      if (!commentSnapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
                       }
 
                       final comments = commentSnapshot.data!;
