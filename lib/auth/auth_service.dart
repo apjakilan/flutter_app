@@ -125,8 +125,10 @@ Future<void> registerUserWithProfile({
       // and forward it to the app scheme. Update this URL after you publish
       // the redirect HTML (docs/supabase-redirect/index.html) to GitHub Pages
       // or another static host.
-      const redirectUrl = 'https://example.github.io/supabase-redirect';
-      await _supabase.auth.resetPasswordForEmail(email, redirectTo: redirectUrl);
+  // Note: this should point to the published GitHub Pages URL for the
+  // redirect page included in this repo at docs/supabase-redirect/index.html
+  const redirectUrl = 'https://apjakilan.github.io/flutter_app/supabase-redirect';
+  await _supabase.auth.resetPasswordForEmail(email, redirectTo: redirectUrl);
     } on AuthException catch (e) {
       throw Exception('Authentication Error: ${e.message}');
     } catch (e) {

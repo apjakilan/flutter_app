@@ -35,6 +35,14 @@ final router = GoRouter(
 
         final location = state.uri.path;
 
+        // If a token/code arrived at the root (e.g. http://localhost:XXXXX/?code=...)
+        // redirect to the app's reset-password route so the landing page can handle it.
+        final qp = state.uri.queryParameters;
+        final incomingToken = qp['access_token'] ?? qp['code'];
+        if (incomingToken != null && location != '/reset-password') {
+            return '/reset-password?access_token=${Uri.encodeComponent(incomingToken)}';
+        }
+
         if (!loggedIn && !authPaths.contains(location)) {
             return '/login';
         }

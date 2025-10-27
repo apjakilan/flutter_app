@@ -24,12 +24,19 @@ class _ResetPasswordLandingPageState extends State<ResetPasswordLandingPage> {
   }
 
   Future<void> _applyTokenIfPresent() async {
-    final token = widget.accessToken;
+    // Accept token via three fallbacks, in order:
+    // 1. token passed by go_router as query param -> widget.accessToken
+    // 2. token available in the current browser URL as access_token
+    // 3. token available as `code` (some environments surface it as `code`)
+    String? token = widget.accessToken;
+    if (token == null) {
+      final qp = Uri.base.queryParameters;
+      token = qp['access_token'] ?? qp['code'];
+    }
+
     if (token == null) return;
-    // We don't set the SDK session directly because different SDK versions
-    // expose different helpers. Instead, we'll keep the token and use it
-    // to call the Supabase Auth REST endpoint to update the user's password
-    // when the user submits a new password.
+
+    // Keep the token for the submit step (we'll use it in the REST call)
     setState(() {
       _accessToken = token;
     });
