@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_app/like/like_service.dart';
+import 'package:flutter_app/views/widgets/create_post_fab.dart';
 
 class HomePage extends StatefulWidget {
     const HomePage({super.key});
@@ -17,33 +18,79 @@ class _HomePageState extends State<HomePage> {
     final LikeService _likeService = LikeService();
     final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
-    late Stream<List<Map<String, dynamic>>> _postsStream;
+    // Pagination state
+    final List<Map<String, dynamic>> _posts = [];
+    final int _limit = 10;
+    int _page = 0; // zero-based page index
+    bool _isLoading = false;
+    bool _hasMore = true;
+    late final ScrollController _scrollController;
 
     @override
     void initState() {
         super.initState();
-        _postsStream = _getRealtimePosts();
+        _scrollController = ScrollController()..addListener(_onScroll);
+        _fetchPostsPage(refresh: true);
     }
 
-    Stream<List<Map<String, dynamic>>> _getRealtimePosts() {
-        return supabase
-            .from('posts')
-            .stream(primaryKey: ['id'])
-            .order('created_at', ascending: false)
-            .asyncMap((posts) async {
-                if (posts.isEmpty) return posts;
+    @override
+    void dispose() {
+        _scrollController.removeListener(_onScroll);
+        _scrollController.dispose();
+        super.dispose();
+    }
 
-                final postIds = posts.map((p) => p['id'] as String).toList();
-                final userIds = posts.map((p) => p['user_id']).toSet().toList();
+    void _onScroll() {
+        if (!_hasMore || _isLoading) return;
+        if (_scrollController.position.extentAfter < 300) {
+            _fetchPostsPage();
+        }
+    }
 
-                // 1. Fetch related profiles
+    Future<void> _fetchPostsPage({bool refresh = false}) async {
+        if (_isLoading) return;
+        setState(() {
+            _isLoading = true;
+        });
+
+        if (refresh) {
+            _page = 0;
+            _hasMore = true;
+        }
+
+        final from = _page * _limit;
+        final to = from + _limit - 1;
+
+        try {
+            final raw = await supabase
+                .from('posts')
+                .select()
+                .order('created_at', ascending: false)
+                .range(from, to);
+
+            final pagePosts = List<Map<String, dynamic>>.from(raw as List);
+
+            if (refresh) {
+                _posts.clear();
+            }
+
+            if (pagePosts.length < _limit) {
+                _hasMore = false;
+            }
+
+            // Attach profiles and like data similar to previous implementation
+            if (pagePosts.isNotEmpty) {
+                final postIds = pagePosts.map((p) => p['id'] as String).toList();
+                final userIds = pagePosts.map((p) => p['user_id']).whereType<String>().toSet().toList();
+
+                // batch fetch profiles
                 final profiles = await supabase
                     .from('profile')
                     .select('id, username, avatar_url')
                     .inFilter('id', userIds);
                 final profileMap = {for (var p in profiles) p['id']: p};
 
-                // 2. Fetch likes data for the displayed posts
+                // fetch likes
                 final allLikesResponse = await supabase
                     .from('likes')
                     .select('post_id, user_id')
@@ -61,16 +108,28 @@ class _HomePageState extends State<HomePage> {
                     }
                 }
 
-                // 3. Attach profiles and like data to posts
-                for (final post in posts) {
+                for (final post in pagePosts) {
                     final postId = post['id'] as String;
                     post['profile'] = profileMap[post['user_id']];
                     post['like_count'] = likeCounts[postId] ?? 0;
                     post['user_liked'] = userLikedStatus[postId] ?? false;
                 }
+            }
 
-                return posts;
+            setState(() {
+                _posts.addAll(pagePosts);
+                _page += 1;
             });
+        } catch (e, st) {
+            debugPrint('Error fetching posts page: $e\n$st');
+            if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to load posts.')),
+                );
+            }
+        } finally {
+            if (mounted) setState(() => _isLoading = false);
+        }
     }
 
     @override
@@ -80,43 +139,33 @@ class _HomePageState extends State<HomePage> {
                 title: Text(title),
                 backgroundColor: Colors.teal,
             ),
-            body: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: _postsStream,
-                builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting ||
-                        !snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (snapshot.hasError) {
-                        return Center(
-                            child: Text(
-                                'Error loading posts: ${snapshot.error}',
-                                style: const TextStyle(color: Colors.red),
-                            ),
-                        );
-                    }
-
-                    final posts = snapshot.data!;
-                    if (posts.isEmpty) {
-                        return const Center(
-                            child: Text(
-                                'No posts yet. Be the first to share something!',
-                                style: TextStyle(fontSize: 16, color: Colors.grey),
-                            ),
-                        );
-                    }
-
-                    return RefreshIndicator(
+            floatingActionButton: const CreatePostFab(),
+            body: _isLoading && _posts.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : _posts.isEmpty
+                    ? const Center(
+                        child: Text(
+                            'No posts yet. Be the first to share something!',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                    )
+                    : RefreshIndicator(
                         onRefresh: () async {
-                            setState(() {
-                                _postsStream = _getRealtimePosts();
-                            });
+                            await _fetchPostsPage(refresh: true);
                         },
                         child: ListView.builder(
-                            itemCount: posts.length,
+                            controller: _scrollController,
+                            itemCount: _posts.length + (_hasMore ? 1 : 0),
                             itemBuilder: (context, index) {
-                                final post = posts[index];
+                                if (index >= _posts.length) {
+                                    // loading indicator at the bottom
+                                    return const Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 16.0),
+                                        child: Center(child: CircularProgressIndicator()),
+                                    );
+                                }
+
+                                final post = _posts[index];
                                 final postId = post['id'] as String;
                                 final profile = post['profile'] ?? {};
                                 final username = profile['username'] ?? 'Unknown';
@@ -223,11 +272,17 @@ class _HomePageState extends State<HomePage> {
                                                                         }
                                                                         return;
                                                                     }
-                                                                        try {
+                                                                    try {
                                                                         await _likeService.toggleLike(postId, _currentUserId);
-                                                                        setState(() {
-                                                                            _postsStream = _getRealtimePosts();
-                                                                        });
+                                                                        // Refresh current loaded pages to reflect like change
+                                                                        if (mounted) {
+                                                                            setState(() {
+                                                                                _posts.clear();
+                                                                                _page = 0;
+                                                                                _hasMore = true;
+                                                                            });
+                                                                            await _fetchPostsPage(refresh: true);
+                                                                        }
                                                                     } catch (e) {
                                                                         debugPrint('Error toggling like: $e');
                                                                         if (context.mounted) {
@@ -259,9 +314,7 @@ class _HomePageState extends State<HomePage> {
                                 );
                             },
                         ),
-                    );
-                },
-            ),
-        );
+                    ),
+            );
     }
 }
