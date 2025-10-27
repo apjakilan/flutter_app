@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/data/notifiers.dart';
-import 'package:flutter_app/views/pages/login_page.dart';
-import 'package:flutter_app/views/pages/registration_page.dart';
-import 'package:flutter_app/views/pages/welcome_page.dart';
+import 'package:flutter_app/views/router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 
@@ -24,7 +22,7 @@ class MyApp extends StatelessWidget {
     return ValueListenableBuilder(
       valueListenable: darkLightMode,
       builder: (context, isDarkMode, child) {
-        return MaterialApp(
+        return MaterialApp.router(
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
@@ -32,12 +30,7 @@ class MyApp extends StatelessWidget {
               brightness: isDarkMode ? Brightness.dark : Brightness.light,
             ),
           ),
-          home: WelcomePage(),
-          routes: {
-            '/firstpage': (context) => RegistrationPage(),
-            '/secondpage':(context) => LoginPage(),
-
-          },
+          routerConfig: router,
         );
       }
     );
