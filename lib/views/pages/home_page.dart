@@ -1,18 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
-// 🚀 THIS IS THE IMPORTANT CHANGE: Import the correct file!
 import 'package:flutter_app/like/like_service.dart';
-
-// ❌ DELETE THE FOLLOWING STUB CLASS:
-/*
-class LikeService {
-    Future<void> toggleLike(String postId, String userId) async {
-        // TODO: implement like toggle logic (e.g., call Supabase RPC or upsert)
-        throw UnimplementedError('LikeService.toggleLike is not implemented');
-    }
-}
-*/
 
 class HomePage extends StatefulWidget {
     const HomePage({super.key});
@@ -25,7 +14,6 @@ class _HomePageState extends State<HomePage> {
     final supabase = Supabase.instance.client;
     final title = 'Home Page';
 
-    // Initialize service and current user id
     final LikeService _likeService = LikeService();
     final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
@@ -37,7 +25,6 @@ class _HomePageState extends State<HomePage> {
         _postsStream = _getRealtimePosts();
     }
 
-    // Creates a realtime stream of posts, joins with profile info, and fetches like data
     Stream<List<Map<String, dynamic>>> _getRealtimePosts() {
         return supabase
             .from('posts')
@@ -46,7 +33,6 @@ class _HomePageState extends State<HomePage> {
             .asyncMap((posts) async {
                 if (posts.isEmpty) return posts;
 
-                // Collect all post IDs and unique user IDs
                 final postIds = posts.map((p) => p['id'] as String).toList();
                 final userIds = posts.map((p) => p['user_id']).toSet().toList();
 
@@ -144,123 +130,131 @@ class _HomePageState extends State<HomePage> {
                                 final bool userLiked = post['user_liked'] as bool? ?? false;
 
                                 return Card(
-                                    margin:
-                                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     elevation: 3,
                                     shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                            // User info and text content
+                                    // 💡 NEW: InkWell to make the entire card content clickable
+                                    child: InkWell(
+                                        onTap: () {
+                                            // Navigate to the post detail page
+                                            context.push('/post_detail/$postId');
+                                        },
+                                        child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                                // User info and text content (kept within a GestureDetector/InkWell for profile nav)
                                                 ListTile(
-                                                onTap: () {
-                                                    if (userId != null && userId.isNotEmpty) {
-                                                        // Navigate using go_router to the guest profile route
-                                                        context.push('/guest/$userId');
-                                                    }
-                                                },
-                                                leading: CircleAvatar(
-                                                    backgroundImage: avatarUrl != null && avatarUrl != ''
-                                                        ? NetworkImage(avatarUrl)
-                                                        : const AssetImage('assets/default_avatar.png')
-                                                                as ImageProvider,
-                                                ),
-                                                title: Text(
-                                                    username,
-                                                    style: const TextStyle(
-                                                        fontWeight: FontWeight.bold,
-                                                        fontSize: 16,
+                                                    onTap: () {
+                                                        if (userId != null && userId.isNotEmpty) {
+                                                            context.push('/guest/$userId');
+                                                        }
+                                                    },
+                                                    leading: CircleAvatar(
+                                                        backgroundImage: avatarUrl != null && avatarUrl != ''
+                                                            ? NetworkImage(avatarUrl)
+                                                            : const AssetImage('assets/default_avatar.png')
+                                                                  as ImageProvider,
                                                     ),
-                                                ),
-                                                subtitle: Padding(
-                                                    padding: const EdgeInsets.only(top: 4.0),
-                                                    child: Text(content),
-                                                ),
-                                                trailing: Text(
-                                                    createdAt != ''
-                                                        ? DateTime.parse(createdAt)
-                                                                .toLocal()
-                                                                .toString()
-                                                                .substring(0, 16)
-                                                        : '',
-                                                    style:
-                                                        const TextStyle(fontSize: 12, color: Colors.grey),
-                                                ),
-                                            ),
-
-                                            // Image display
-                                            if (imageUrl != null && imageUrl.isNotEmpty)
-                                                Padding(
-                                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                                                    child: ClipRRect(
-                                                        borderRadius: BorderRadius.circular(8.0),
-                                                        child: Image.network(
-                                                            imageUrl,
-                                                            fit: BoxFit.cover,
-                                                            width: double.infinity,
-                                                            loadingBuilder: (context, child, loadingProgress) {
-                                                                if (loadingProgress == null) return child;
-                                                                return const SizedBox(
-                                                                    height: 150,
-                                                                    child: Center(child: CircularProgressIndicator()),
-                                                                );
-                                                            },
-                                                            errorBuilder: (context, error, stackTrace) {
-                                                                debugPrint('Image load failed for URL: $imageUrl. Error: $error');
-                                                                return const SizedBox(
-                                                                    height: 150,
-                                                                    child: Center(
-                                                                        child: Text('Failed to load image'),
-                                                                    ),
-                                                                );
-                                                            },
+                                                    title: Text(
+                                                        username,
+                                                        style: const TextStyle(
+                                                            fontWeight: FontWeight.bold,
+                                                            fontSize: 16,
                                                         ),
                                                     ),
+                                                    subtitle: Padding(
+                                                        padding: const EdgeInsets.only(top: 4.0),
+                                                        child: Text(content),
+                                                    ),
+                                                    trailing: Text(
+                                                        createdAt != ''
+                                                            ? DateTime.parse(createdAt).toLocal().toString().substring(0, 16)
+                                                            : '',
+                                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                                    ),
                                                 ),
 
-                                            // Like button and count
-                                            Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                                                child: Row(
-                                                    children: [
-                                                        IconButton(
-                                                            icon: Icon(
-                                                                userLiked ? Icons.favorite : Icons.favorite_border,
-                                                                color: userLiked ? Colors.red : Colors.grey,
-                                                            ),
-                                                            onPressed: () async {
-                                                                if (_currentUserId == null) {
-                                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                                        const SnackBar(content: Text('Please log in to like a post.')),
+                                                // Image display
+                                                if (imageUrl != null && imageUrl.isNotEmpty)
+                                                    Padding(
+                                                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                                                        child: ClipRRect(
+                                                            borderRadius: BorderRadius.circular(8.0),
+                                                            child: Image.network(
+                                                                imageUrl,
+                                                                fit: BoxFit.cover,
+                                                                width: double.infinity,
+                                                                loadingBuilder: (context, child, loadingProgress) {
+                                                                    if (loadingProgress == null) return child;
+                                                                    return const SizedBox(
+                                                                        height: 150,
+                                                                        child: Center(child: CircularProgressIndicator()),
                                                                     );
-                                                                    return;
-                                                                }
-                                                                try {
-                                                                    // The toggleLike RPC in your service returns the new count (int).
-                                                                    // We don't need to use the return value here, as we reload the stream.
-                                                                    await _likeService.toggleLike(postId, _currentUserId);
-                                                                    
-                                                                    // Reload the stream to fetch the updated count and user_liked status.
-                                                                    setState(() {
-                                                                        _postsStream = _getRealtimePosts();
-                                                                    });
-                                                                } catch (e) {
-                                                                    debugPrint('Error toggling like: $e');
-                                                                    if (context.mounted) {
-                                                                        ScaffoldMessenger.of(context).showSnackBar(
-                                                                            const SnackBar(content: Text('Failed to update like status.')),
-                                                                        );
-                                                                    }
-                                                                }
-                                                            },
+                                                                },
+                                                                errorBuilder: (context, error, stackTrace) {
+                                                                    debugPrint('Image load failed for URL: $imageUrl. Error: $error');
+                                                                    return const SizedBox(
+                                                                        height: 150,
+                                                                        child: Center(child: Text('Failed to load image')),
+                                                                    );
+                                                                },
+                                                            ),
                                                         ),
-                                                        Text('$likeCount likes'),
-                                                    ],
+                                                    ),
+
+                                                // Like and Comment buttons
+                                                Padding(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                                    child: Row(
+                                                        children: [
+                                                            IconButton(
+                                                                icon: Icon(
+                                                                    userLiked ? Icons.favorite : Icons.favorite_border,
+                                                                    color: userLiked ? Colors.red : Colors.grey,
+                                                                ),
+                                                                onPressed: () async {
+                                                                    if (_currentUserId == null) {
+                                                                        if (context.mounted) {
+                                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                                                const SnackBar(content: Text('Please log in to like a post.')),
+                                                                            );
+                                                                        }
+                                                                        return;
+                                                                    }
+                                                                    try {
+                                                                        await _likeService.toggleLike(postId, _currentUserId!);
+                                                                        setState(() {
+                                                                            _postsStream = _getRealtimePosts();
+                                                                        });
+                                                                    } catch (e) {
+                                                                        debugPrint('Error toggling like: $e');
+                                                                        if (context.mounted) {
+                                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                                                const SnackBar(content: Text('Failed to update like status.')),
+                                                                            );
+                                                                        }
+                                                                    }
+                                                                },
+                                                            ),
+                                                            Text('$likeCount likes'),
+                                                            
+                                                            // 💡 NEW: Comment Action Button
+                                                            const SizedBox(width: 16),
+                                                            TextButton.icon(
+                                                                icon: const Icon(Icons.comment_outlined, color: Colors.grey),
+                                                                label: const Text('Comments'),
+                                                                onPressed: () {
+                                                                    // Navigate to the post detail page
+                                                                    context.push('/post_detail/$postId');
+                                                                },
+                                                            ),
+                                                        ],
+                                                    ),
                                                 ),
-                                            ),
-                                        ],
+                                            ],
+                                        ),
                                     ),
                                 );
                             },

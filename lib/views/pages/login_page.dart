@@ -29,7 +29,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    setState(() => _loading = true);
+      setState(() => _loading = true);
     try {
       await authService.signInWithEmailPassword(
         _emailController.text.trim(),
