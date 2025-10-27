@@ -9,6 +9,7 @@ import 'package:flutter_app/views/pages/edit_profile_page.dart';
 import 'package:flutter_app/views/pages/unified_search_page.dart';
 import 'package:flutter_app/views/post_card.dart';
 import 'package:flutter_app/views/widget_tree.dart';
+import 'package:flutter_app/views/pages/reset_password_landing_page.dart';
 import 'package:flutter_app/views/pages/home_page.dart';
 import 'package:flutter_app/views/pages/discover_page.dart';
 import 'package:flutter_app/views/pages/map_page.dart';
@@ -60,6 +61,14 @@ final router = GoRouter(
         GoRoute(
             path: '/forgot-password',
             builder: (context, state) => const ForgotPasswordPage(),
+        ),
+        // Landing route for deep-links forwarded from the web redirect page.
+        GoRoute(
+            path: '/reset-password',
+            builder: (context, state) {
+                final token = state.uri.queryParameters['access_token'];
+                return ResetPasswordLandingPage(accessToken: token);
+            },
         ),
         // 🚀 NEW ROUTE: Post Detail Page
         GoRoute(

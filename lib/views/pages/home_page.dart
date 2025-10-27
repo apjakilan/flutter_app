@@ -223,8 +223,8 @@ class _HomePageState extends State<HomePage> {
                                                                         }
                                                                         return;
                                                                     }
-                                                                    try {
-                                                                        await _likeService.toggleLike(postId, _currentUserId!);
+                                                                        try {
+                                                                        await _likeService.toggleLike(postId, _currentUserId);
                                                                         setState(() {
                                                                             _postsStream = _getRealtimePosts();
                                                                         });

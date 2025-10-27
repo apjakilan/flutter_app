@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Supabase Redirect</title>
+    <script>
+      (function() {
+        // Read fragment like #access_token=...&type=recovery
+        const hash = window.location.hash.substring(1); // remove '#'
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        const type = params.get('type') || '';
+
+        if (accessToken) {
+          // Redirect to app scheme with token as query param
+          // Example: snap2store://reset-password?access_token=...
+          const target = `snap2store://reset-password?access_token=${encodeURIComponent(accessToken)}&type=${encodeURIComponent(type)}`;
+          // Use replace to avoid leaving the token in browser history
+          window.location.replace(target);
+        } else {
+          document.body.textContent = 'No access token found in URL.';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    Redirecting…
+  </body>
+</html>

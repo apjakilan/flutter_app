@@ -121,7 +121,12 @@ Future<void> registerUserWithProfile({
   /// Throws [AuthException] on Supabase auth errors, or other exceptions for unexpected failures.
   Future<void> resetPassword(String email) async {
     try {
-      await _supabase.auth.resetPasswordForEmail(email);
+      // Use the hosted redirect page so we can capture the fragment token
+      // and forward it to the app scheme. Update this URL after you publish
+      // the redirect HTML (docs/supabase-redirect/index.html) to GitHub Pages
+      // or another static host.
+      const redirectUrl = 'https://example.github.io/supabase-redirect';
+      await _supabase.auth.resetPasswordForEmail(email, redirectTo: redirectUrl);
     } on AuthException catch (e) {
       throw Exception('Authentication Error: ${e.message}');
     } catch (e) {
